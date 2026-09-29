@@ -235,16 +235,15 @@ proptest! {
                     let shares = (owned * i128::from(share_bps) / 10_000)
                         .max(1)
                         .min(owned);
-                    let price_before_withdrawal = h.vault().share_price();
+                    let price_before_withdraw = h.vault().share_price();
                     h.vault().withdraw(&users[user_idx], &shares, &0);
-                    let price_after_withdrawal = h.vault().share_price();
+                    let price_after_withdraw = h.vault().share_price();
                     prop_assert!(
-                        price_after_withdrawal >= price_before_withdrawal,
-                        "Share price decreased from withdrawal alone: before={}, after={}",
-                        price_before_withdrawal,
-                        price_after_withdrawal
+                        price_after_withdraw >= price_before_withdraw,
+                        "share price decreased from a withdrawal alone: {} -> {}",
+                        price_before_withdraw,
+                        price_after_withdraw
                     );
-                    continue;
                 }
                 VaultOp::Harvest { user_idx } => {
                     let shares = h.token().balance(&users[user_idx]);
