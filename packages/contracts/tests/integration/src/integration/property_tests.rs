@@ -15,6 +15,7 @@
 extern crate std;
 
 use proptest::prelude::*;
+use nester_common::AssetConfig;
 use soroban_sdk::{testutils::Ledger as _, Address};
 
 use nester_access_control::Role;
