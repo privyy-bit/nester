@@ -218,6 +218,7 @@ proptest! {
 
         for op in ops {
             let mut loss_event = false;
+            let price_before_op = h.vault().share_price();
 
             match op {
                 VaultOp::Deposit { user_idx, amount } => {
@@ -236,6 +237,14 @@ proptest! {
                         .max(1)
                         .min(owned);
                     h.vault().withdraw(&users[user_idx], &shares, &0);
+
+                    let price_after_withdrawal = h.vault().share_price();
+                    prop_assert!(
+                        price_after_withdrawal >= price_before_op,
+                        "Invariant violated: Share price decreased from {} to {} following a withdrawal alone (issue #1029)",
+                        price_before_op,
+                        price_after_withdrawal
+                    );
                 }
                 VaultOp::Harvest { user_idx } => {
                     let shares = h.token().balance(&users[user_idx]);
