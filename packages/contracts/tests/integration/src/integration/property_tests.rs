@@ -209,6 +209,84 @@ proptest! {
     })]
 
     #[test]
+    fn prop_share_price_never_decreases_from_withdrawal_alone(
+        ops in prop::collection::vec(op_strategy(3), 1..30)
+    ) {
+        let (h, users) = setup_harness_with_users(3);
+        configure_invariant_harness(&h);
+
+        for op in ops {
+            match op {
+                VaultOp::Deposit { user_idx, amount } => {
+                    if amount < MIN_DEPOSIT {
+                        continue;
+                    }
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        h.vault().deposit(&users[user_idx], &amount, &0)
+                    }));
+                }
+                VaultOp::Withdraw { user_idx, share_bps } => {
+                    let owned = h.token().balance(&users[user_idx]);
+                    if owned == 0 {
+                        continue;
+                    }
+                    let shares = (owned * i128::from(share_bps) / 10_000)
+                        .max(1)
+                        .min(owned);
+                    let price_before = h.vault().share_price();
+                    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        h.vault().withdraw(&users[user_idx], &shares, &0)
+                    }));
+                    if res.is_ok() {
+                        let price_after = h.vault().share_price();
+                        prop_assert!(
+                            price_after >= price_before,
+                            "Share price decreased from withdrawal alone: before={}, after={}",
+                            price_before,
+                            price_after
+                        );
+                    }
+                }
+                VaultOp::Harvest { user_idx } => {
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        h.vault().harvest(&users[user_idx])
+                    }));
+                }
+                VaultOp::ReportYield { yield_bps } => {
+                    let total = h.token().total_assets();
+                    if total > 0 {
+                        let amount = total * i128::from(yield_bps) / 100_000;
+                        if amount > 0 {
+                            h.mint_deposit_tokens(&h.vault_id, amount);
+                            h.vault().grant_role(&h.admin, &h.admin, &Role::Manager);
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                h.vault().report_yield(&h.admin, &amount)
+                            }));
+                        }
+                    }
+                }
+                VaultOp::ReportLoss { loss_bps } => {
+                    let total = h.token().total_assets();
+                    if total > 0 {
+                        let amount = total * i128::from(loss_bps) / 100_000;
+                        if amount > 0 {
+                            h.vault().grant_role(&h.admin, &h.admin, &Role::Manager);
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                h.vault().report_loss(&h.admin, &amount)
+                            }));
+                        }
+                    }
+                }
+                VaultOp::CollectFees => {
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        h.vault().collect_fees(&h.admin)
+                    }));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn prop_randomized_share_accounting_invariants(
         ops in prop::collection::vec(op_strategy(3), 1..30)
     ) {
